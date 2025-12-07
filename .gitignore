@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Configuration with secrets
+config.json
+config-phrases-test.json
+.env
+
+# User data
+data/
+
+# Language datasets (too large for git)
+languages/*.json
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.kate-swp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*

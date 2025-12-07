@@ -1,0 +1,21 @@
+{
+  "name": "linguadrill",
+  "version": "1.0.0",
+  "description": "LinguaDrill - Master languages through intelligent iterative drilling",
+  "main": "server.js",
+  "scripts": {
+    "generate": "node backend/generate-datasets.js",
+    "generate:phrases": "node backend/generate-datasets-phrases.js",
+    "generate:v2": "node backend/generate-datasets-v2.js",
+    "generate:v3": "node backend/generate-datasets-v3.js",
+    "start": "node server.js",
+    "test": "node backend/test-api.js",
+    "clean:old": "rm -f languages/*-phrases.json languages/*-v2.json"
+  },
+  "keywords": ["language", "learning", "education"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "openai": "^4.20.1"
+  }
+}
