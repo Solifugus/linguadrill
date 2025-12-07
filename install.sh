@@ -36,9 +36,29 @@ echo "=========================================="
 echo "Step 1: Installing system packages..."
 echo "=========================================="
 
-# Install required packages
-apt update
-apt install -y nodejs npm git nginx certbot python3-certbot-nginx
+# Check if Node.js is already installed
+if ! command -v node &> /dev/null; then
+    echo "Node.js not found. Installing Node.js 22 LTS..."
+
+    # Remove any conflicting packages
+    apt remove -y nodejs npm 2>/dev/null || true
+    apt autoremove -y
+
+    # Remove old NodeSource repository
+    rm -f /etc/apt/sources.list.d/nodesource.list
+
+    # Add Node.js 22 repository
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+
+    # Install Node.js (includes npm)
+    apt update
+    apt install -y nodejs
+else
+    echo "Node.js already installed"
+fi
+
+# Install other required packages
+apt install -y git nginx certbot python3-certbot-nginx
 
 # Verify Node.js installation
 echo ""
