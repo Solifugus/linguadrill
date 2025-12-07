@@ -12,6 +12,9 @@ data/
 # Language datasets (too large for git)
 languages/*.json
 
+# Audio files (too large for git)
+audio/
+
 # IDE and editor files
 .vscode/
 .idea/

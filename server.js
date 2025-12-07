@@ -2,11 +2,12 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const db = require('./backend/database');
 
 // Configuration
 const PORT = 8080;
-const USERS_DIR = './data/users';
 const LANGUAGES_DIR = './languages';
+const AUDIO_DIR = './audio';
 const PUBLIC_DIR = './public';
 
 // Utility functions
@@ -76,73 +77,17 @@ const utils = {
             '.gif': 'image/gif',
             '.svg': 'image/svg+xml',
             '.ico': 'image/x-icon',
-            '.webmanifest': 'application/manifest+json'
+            '.webmanifest': 'application/manifest+json',
+            '.mp3': 'audio/mpeg',
+            '.wav': 'audio/wav',
+            '.ogg': 'audio/ogg'
         };
         return mimeTypes[ext] || 'application/octet-stream';
     }
 };
 
-// User management
-const users = {
-    getFilePath: function(email) {
-        const hash = crypto.createHash('md5').update(email.toLowerCase()).digest('hex');
-        return path.join(USERS_DIR, `${hash}.json`);
-    },
-
-    exists: function(email) {
-        return fs.existsSync(users.getFilePath(email));
-    },
-
-    create: function(email, password, nativeLanguage) {
-        if (users.exists(email)) {
-            return { success: false, error: 'User already exists' };
-        }
-
-        const userId = utils.generateUserId();
-        const userData = {
-            userId: userId,
-            email: email.toLowerCase(),
-            passwordHash: utils.hashPassword(password),
-            nativeLanguage: nativeLanguage,
-            createdAt: new Date().toISOString()
-        };
-
-        utils.writeJSON(users.getFilePath(email), userData);
-        return { success: true, userId: userId };
-    },
-
-    authenticate: function(email, password) {
-        if (!users.exists(email)) {
-            return { success: false, error: 'Invalid credentials' };
-        }
-
-        const userData = utils.readJSON(users.getFilePath(email));
-        const passwordHash = utils.hashPassword(password);
-
-        if (userData.passwordHash !== passwordHash) {
-            return { success: false, error: 'Invalid credentials' };
-        }
-
-        return {
-            success: true,
-            userId: userData.userId,
-            nativeLanguage: userData.nativeLanguage
-        };
-    },
-
-    changePassword: function(email, oldPassword, newPassword) {
-        const auth = users.authenticate(email, oldPassword);
-        if (!auth.success) {
-            return { success: false, error: 'Invalid current password' };
-        }
-
-        const userData = utils.readJSON(users.getFilePath(email));
-        userData.passwordHash = utils.hashPassword(newPassword);
-        utils.writeJSON(users.getFilePath(email), userData);
-
-        return { success: true };
-    }
-};
+// User management now handled by database module
+// No file-based user storage needed
 
 // Language dataset management
 const languages = {
@@ -223,18 +168,20 @@ const routes = {
             const body = await utils.parseBody(req);
             const { email, password, nativeLanguage } = body;
 
-            if (!email || !password || !nativeLanguage) {
+            if (!email || !password) {
                 return utils.sendError(res, 400, 'Missing required fields');
             }
 
-            const result = users.create(email, password, nativeLanguage);
+            // Default to English if no language specified
+            const result = await db.createUser(email, password, nativeLanguage || 'English');
             if (!result.success) {
                 return utils.sendError(res, 400, result.error);
             }
 
             utils.sendJSON(res, 201, {
                 success: true,
-                userId: result.userId,
+                userId: result.user.id,
+                nativeLanguage: result.user.native_language,
                 message: 'User created successfully'
             });
         } catch (error) {
@@ -253,15 +200,15 @@ const routes = {
                 return utils.sendError(res, 400, 'Missing email or password');
             }
 
-            const result = users.authenticate(email, password);
+            const result = await db.authenticateUser(email, password);
             if (!result.success) {
                 return utils.sendError(res, 401, result.error);
             }
 
             utils.sendJSON(res, 200, {
                 success: true,
-                userId: result.userId,
-                nativeLanguage: result.nativeLanguage
+                userId: result.user.id,
+                nativeLanguage: result.user.native_language
             });
         } catch (error) {
             console.error('Login error:', error);
@@ -279,7 +226,7 @@ const routes = {
                 return utils.sendError(res, 400, 'Missing required fields');
             }
 
-            const result = users.changePassword(email, oldPassword, newPassword);
+            const result = await db.changePassword(email, oldPassword, newPassword);
             if (!result.success) {
                 return utils.sendError(res, 400, result.error);
             }
@@ -382,6 +329,35 @@ const router = function(req, res) {
         return utils.sendError(res, 404, 'API endpoint not found');
     }
 
+    // Serve audio files
+    if (url.startsWith('/audio/')) {
+        const audioDir = path.resolve(AUDIO_DIR);
+        const audioPath = path.join(audioDir, url.replace('/audio/', ''));
+        const resolvedAudioPath = path.resolve(audioPath);
+
+        // Security: prevent directory traversal
+        if (!resolvedAudioPath.startsWith(audioDir)) {
+            return utils.sendError(res, 403, 'Forbidden');
+        }
+
+        fs.readFile(audioPath, (err, data) => {
+            if (err) {
+                if (err.code === 'ENOENT') {
+                    res.writeHead(404);
+                    res.end('404 Audio Not Found');
+                } else {
+                    res.writeHead(500);
+                    res.end('500 Internal Server Error');
+                }
+                return;
+            }
+
+            res.writeHead(200, { 'Content-Type': utils.getMimeType(audioPath) });
+            res.end(data);
+        });
+        return;
+    }
+
     // Serve static files
     const publicDir = path.resolve(PUBLIC_DIR);
     let filePath = path.join(publicDir, url === '/' ? 'index.html' : url);
@@ -410,11 +386,17 @@ const router = function(req, res) {
 };
 
 // Initialize server
-const init = function() {
+const init = async function() {
     console.log('Initializing LinguaDrill Server...');
 
+    // Initialize database connection
+    const dbConnected = await db.init();
+    if (!dbConnected) {
+        console.error('WARNING: Database connection failed. Server will run but authentication may not work.');
+        console.error('Make sure PostgreSQL is running and configured correctly.');
+    }
+
     // Ensure required directories exist
-    utils.ensureDir(USERS_DIR);
     utils.ensureDir(PUBLIC_DIR);
 
     // Create server
@@ -422,6 +404,7 @@ const init = function() {
 
     server.listen(PORT, () => {
         console.log(`Server running at http://localhost:${PORT}/`);
+        console.log(`Database: ${dbConnected ? 'Connected' : 'Not Connected'}`);
         console.log(`Available languages: ${Object.keys(languages.getAvailableLanguages()).join(', ')}`);
     });
 };

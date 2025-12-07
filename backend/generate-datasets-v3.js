@@ -31,6 +31,15 @@ const utils = {
         return new Promise(resolve => setTimeout(resolve, ms));
     },
 
+    sanitizeFilename: function(text) {
+        return text.replace(/[^a-z0-9]/gi, '_').toLowerCase().substring(0, 50);
+    },
+
+    getAudioPath: function(targetLang, learnerLang, type, filename) {
+        const baseName = `${targetLang.toLowerCase()}-${learnerLang.toLowerCase().replace(/\s+/g, '-')}`;
+        return path.join('./audio', baseName, type, filename);
+    },
+
     parseJSON: function(text) {
         let cleaned = text.trim();
         if (cleaned.startsWith('```json')) {
@@ -121,6 +130,42 @@ const ai = {
         } catch (error) {
             console.error('OpenAI API Error:', error.message);
             throw error;
+        }
+    },
+
+    generateAudio: async function(text, language, outputPath) {
+        try {
+            // Map language names to OpenAI TTS voice models
+            const voiceMap = {
+                'korean': 'alloy',
+                'french': 'alloy',
+                'ukrainian': 'alloy',
+                'english': 'alloy',
+                'spanish': 'nova',
+                'japanese': 'shimmer',
+                'mandarin chinese': 'alloy',
+                'hindi': 'alloy',
+                'arabic': 'alloy',
+                'bengali': 'alloy',
+                'portuguese': 'nova',
+                'russian': 'alloy'
+            };
+
+            const voice = voiceMap[language.toLowerCase()] || 'alloy';
+
+            const mp3 = await openai.audio.speech.create({
+                model: 'tts-1',
+                voice: voice,
+                input: text
+            });
+
+            const buffer = Buffer.from(await mp3.arrayBuffer());
+            fs.writeFileSync(outputPath, buffer);
+
+            return true;
+        } catch (error) {
+            console.error(`Audio generation error for "${text}":`, error.message);
+            return false;
         }
     }
 };
@@ -252,8 +297,26 @@ Return ONLY valid JSON:
             iterations: []
         };
 
+        // Create audio directories
+        const baseName = `${targetLang.toLowerCase()}-${learnerLang.toLowerCase().replace(/\s+/g, '-')}`;
+        const audioBaseDir = path.join('./audio', baseName);
+        utils.ensureDir(path.join(audioBaseDir, 'alphabet'));
+        utils.ensureDir(path.join(audioBaseDir, 'vocabulary'));
+        utils.ensureDir(path.join(audioBaseDir, 'grammar'));
+        utils.ensureDir(path.join(audioBaseDir, 'dialog'));
+
         // Step 1: Generate alphabet
         dataset.alphabet = await generator.generateAlphabet(targetLang, learnerLang);
+
+        // Generate audio for alphabet
+        console.log('  Generating alphabet audio...');
+        for (const letter of dataset.alphabet) {
+            const filename = `${utils.sanitizeFilename(letter.character)}.mp3`;
+            const audioPath = utils.getAudioPath(targetLang, learnerLang, 'alphabet', filename);
+            await ai.generateAudio(letter.character, targetLang, audioPath);
+            letter.audioUrl = `/audio/${baseName}/alphabet/${filename}`;
+        }
+
         await utils.sleep(1000);
 
         // Step 2: Generate 200 dialog lines upfront
@@ -282,6 +345,15 @@ Return ONLY valid JSON:
             );
             await utils.sleep(1000);
 
+            // Generate audio for vocabulary
+            console.log(`  Generating vocabulary audio...`);
+            for (const vocab of vocabulary) {
+                const filename = `iter${iterNum}_${utils.sanitizeFilename(vocab.word)}.mp3`;
+                const audioPath = utils.getAudioPath(targetLang, learnerLang, 'vocabulary', filename);
+                await ai.generateAudio(vocab.word, targetLang, audioPath);
+                vocab.audioUrl = `/audio/${baseName}/vocabulary/${filename}`;
+            }
+
             // Generate grammar rules from the dialog
             const grammarRules = await generator.generateGrammarFromDialog(
                 targetLang,
@@ -290,6 +362,26 @@ Return ONLY valid JSON:
                 vocabulary
             );
             await utils.sleep(1000);
+
+            // Generate audio for grammar examples
+            console.log(`  Generating grammar audio...`);
+            for (let g = 0; g < grammarRules.length; g++) {
+                const grammar = grammarRules[g];
+                const filename = `iter${iterNum}_grammar${g + 1}.mp3`;
+                const audioPath = utils.getAudioPath(targetLang, learnerLang, 'grammar', filename);
+                await ai.generateAudio(grammar.example, targetLang, audioPath);
+                grammar.audioUrl = `/audio/${baseName}/grammar/${filename}`;
+            }
+
+            // Generate audio for dialog lines
+            console.log(`  Generating dialog audio...`);
+            for (let d = 0; d < iterInfo.dialogLines.length; d++) {
+                const dialogLine = iterInfo.dialogLines[d];
+                const filename = `iter${iterNum}_dialog${d + 1}.mp3`;
+                const audioPath = utils.getAudioPath(targetLang, learnerLang, 'dialog', filename);
+                await ai.generateAudio(dialogLine.text, targetLang, audioPath);
+                dialogLine.audioUrl = `/audio/${baseName}/dialog/${filename}`;
+            }
 
             dataset.iterations.push({
                 iteration: iterNum,

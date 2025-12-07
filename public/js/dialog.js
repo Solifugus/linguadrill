@@ -134,7 +134,14 @@ dialog.updateProgress = function() {
 
 dialog.showLine = function(line) {
     document.getElementById('dialog-speaker').textContent = line.speaker;
-    document.getElementById('dialog-text').textContent = line.text;
+    const textDisplay = document.getElementById('dialog-text');
+    textDisplay.textContent = line.text;
+
+    // Add audio button if available
+    if (line.audioUrl) {
+        const audioBtn = audio.createButton(line.audioUrl);
+        textDisplay.parentElement.appendChild(audioBtn);
+    }
 
     const distractors = dialog.data
         .filter(function(l) { return l.text !== line.text; })

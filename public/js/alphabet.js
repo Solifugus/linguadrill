@@ -56,7 +56,14 @@ alphabet.render = function() {
 };
 
 alphabet.showCharacter = function(letter) {
-    document.getElementById('alphabet-character').textContent = letter.character;
+    const characterDisplay = document.getElementById('alphabet-character');
+    characterDisplay.textContent = letter.character;
+
+    // Add audio button if available
+    if (letter.audioUrl) {
+        const audioBtn = audio.createButton(letter.audioUrl);
+        characterDisplay.parentElement.appendChild(audioBtn);
+    }
 
     const distractors = alphabet.data
         .filter(function(l) { return l.character !== letter.character; })

@@ -135,7 +135,14 @@ vocabulary.updateProgress = function() {
 };
 
 vocabulary.showWord = function(word) {
-    document.getElementById('vocabulary-word').textContent = word.word;
+    const wordDisplay = document.getElementById('vocabulary-word');
+    wordDisplay.textContent = word.word;
+
+    // Add audio button if available
+    if (word.audioUrl) {
+        const audioBtn = audio.createButton(word.audioUrl);
+        wordDisplay.parentElement.appendChild(audioBtn);
+    }
 
     const distractors = vocabulary.data
         .filter(function(w) { return w.word !== word.word; })

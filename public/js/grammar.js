@@ -133,7 +133,14 @@ grammar.updateProgress = function() {
 
 grammar.showRule = function(rule) {
     document.getElementById('grammar-rule').textContent = rule.rule;
-    document.getElementById('grammar-example').textContent = rule.example;
+    const exampleDisplay = document.getElementById('grammar-example');
+    exampleDisplay.textContent = rule.example;
+
+    // Add audio button if available
+    if (rule.audioUrl) {
+        const audioBtn = audio.createButton(rule.audioUrl);
+        exampleDisplay.parentElement.appendChild(audioBtn);
+    }
 
     const distractors = grammar.data
         .filter(function(r) { return r.rule !== rule.rule; })

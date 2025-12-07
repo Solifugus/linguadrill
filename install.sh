@@ -58,7 +58,7 @@ else
 fi
 
 # Install other required packages
-apt install -y git nginx certbot python3-certbot-nginx
+apt install -y git nginx certbot python3-certbot-nginx postgresql postgresql-contrib
 
 # Verify Node.js installation
 echo ""
@@ -67,7 +67,34 @@ echo "npm version: $(npm --version)"
 
 echo ""
 echo "=========================================="
-echo "Step 2: Cloning repository..."
+echo "Step 2: Setting up PostgreSQL..."
+echo "=========================================="
+
+# Start PostgreSQL
+systemctl start postgresql
+systemctl enable postgresql
+
+# Create database and user
+sudo -u postgres psql <<EOF
+-- Create database
+CREATE DATABASE linguadrill;
+
+-- Create user
+CREATE USER linguadrill WITH PASSWORD 'linguadrill';
+
+-- Grant privileges
+GRANT ALL PRIVILEGES ON DATABASE linguadrill TO linguadrill;
+
+-- Connect to database and grant schema privileges
+\c linguadrill
+GRANT ALL ON SCHEMA public TO linguadrill;
+EOF
+
+echo "PostgreSQL configured"
+
+echo ""
+echo "=========================================="
+echo "Step 3: Cloning repository..."
 echo "=========================================="
 
 # Create directory and clone
@@ -85,14 +112,24 @@ cd linguadrill
 
 echo ""
 echo "=========================================="
-echo "Step 3: Installing dependencies..."
+echo "Step 4: Installing dependencies..."
 echo "=========================================="
 
 npm install
 
 echo ""
 echo "=========================================="
-echo "Step 4: Creating configuration..."
+echo "Step 5: Initializing database schema..."
+echo "=========================================="
+
+# Initialize database tables
+PGPASSWORD=linguadrill psql -U linguadrill -d linguadrill -f backend/init-db.sql
+
+echo "Database schema created"
+
+echo ""
+echo "=========================================="
+echo "Step 6: Creating configuration..."
 echo "=========================================="
 
 # Create config.json
@@ -127,7 +164,7 @@ echo "Configuration file created"
 
 echo ""
 echo "=========================================="
-echo "Step 5: Creating systemd service..."
+echo "Step 7: Creating systemd service..."
 echo "=========================================="
 
 # Create systemd service
@@ -171,7 +208,7 @@ fi
 
 echo ""
 echo "=========================================="
-echo "Step 6: Configuring Nginx..."
+echo "Step 8: Configuring Nginx..."
 echo "=========================================="
 
 # Configure Nginx
@@ -209,7 +246,7 @@ echo "Nginx configured and restarted"
 
 echo ""
 echo "=========================================="
-echo "Step 7: Configuring firewall..."
+echo "Step 9: Configuring firewall..."
 echo "=========================================="
 
 # Configure UFW firewall
@@ -224,7 +261,7 @@ echo "Firewall configured"
 if [ -n "$DOMAIN_NAME" ]; then
     echo ""
     echo "=========================================="
-    echo "Step 8: Setting up SSL certificate..."
+    echo "Step 10: Setting up SSL certificate..."
     echo "=========================================="
 
     echo "Attempting to obtain SSL certificate for $DOMAIN_NAME"
