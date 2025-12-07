@@ -1,5 +1,5 @@
 // Application Configuration
 const config = {
-    apiBaseUrl: 'http://localhost:8080/api',
+    apiBaseUrl: '/api',  // Use relative URL to work on any domain
     iterationCount: 20
 };
