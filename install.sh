@@ -129,7 +129,35 @@ echo "Database schema created"
 
 echo ""
 echo "=========================================="
-echo "Step 6: Creating configuration..."
+echo "Step 6: Importing language datasets..."
+echo "=========================================="
+
+# Check for languages.tar.gz in common locations
+LANGUAGES_TAR=""
+if [ -f "/root/languages.tar.gz" ]; then
+    LANGUAGES_TAR="/root/languages.tar.gz"
+elif [ -f "./languages.tar.gz" ]; then
+    LANGUAGES_TAR="./languages.tar.gz"
+elif [ -f "/tmp/languages.tar.gz" ]; then
+    LANGUAGES_TAR="/tmp/languages.tar.gz"
+fi
+
+if [ -n "$LANGUAGES_TAR" ]; then
+    echo "Found language datasets at: $LANGUAGES_TAR"
+    echo "Extracting language datasets..."
+    tar -xzf "$LANGUAGES_TAR"
+    echo "✓ Language datasets imported"
+else
+    echo "No language datasets found (languages.tar.gz)"
+    echo "You can:"
+    echo "  1. Copy languages.tar.gz to /root/ and re-run this script"
+    echo "  2. Generate datasets later with: npm run generate:v3"
+    mkdir -p languages
+fi
+
+echo ""
+echo "=========================================="
+echo "Step 7: Creating configuration..."
 echo "=========================================="
 
 # Create config.json
@@ -164,7 +192,7 @@ echo "Configuration file created"
 
 echo ""
 echo "=========================================="
-echo "Step 7: Creating systemd service..."
+echo "Step 8: Creating systemd service..."
 echo "=========================================="
 
 # Create systemd service
@@ -208,7 +236,7 @@ fi
 
 echo ""
 echo "=========================================="
-echo "Step 8: Configuring Nginx..."
+echo "Step 9: Configuring Nginx..."
 echo "=========================================="
 
 # Configure Nginx
@@ -246,7 +274,7 @@ echo "Nginx configured and restarted"
 
 echo ""
 echo "=========================================="
-echo "Step 9: Configuring firewall..."
+echo "Step 10: Configuring firewall..."
 echo "=========================================="
 
 # Configure UFW firewall
@@ -261,7 +289,7 @@ echo "Firewall configured"
 if [ -n "$DOMAIN_NAME" ]; then
     echo ""
     echo "=========================================="
-    echo "Step 10: Setting up SSL certificate..."
+    echo "Step 11: Setting up SSL certificate..."
     echo "=========================================="
 
     echo "Attempting to obtain SSL certificate for $DOMAIN_NAME"
